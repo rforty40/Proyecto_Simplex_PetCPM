@@ -146,17 +146,18 @@ class MethSimplex(QMainWindow):
                     self.comboObjetivo.setVisible(True)
 
         elif boton == self.botonCalcular:
-            self.allTable = []
-            self.matrizInicial()
-            self.botonPdf.setVisible(False)
-            self.metodo = ""
-            self.tituloMetodo = ""
-            if self.comboMetodo.currentIndex() == 0:
-                self.metodo = "MetodoSimplex"
-                self.tituloMetodo = "REPORTE MÉTODO SIMPLEX"
-            else:
-                self.metodo = "MetodoBigM"
-                self.tituloMetodo = "REPORTE MÉTODO BIG M"
+            if self.validarTablaFuncion() and self.validarTablaRestricciones(): #validar datos
+                self.allTable = []
+                self.matrizInicial()
+                self.botonPdf.setVisible(False)
+                self.metodo = ""
+                self.tituloMetodo = ""
+                if self.comboMetodo.currentIndex() == 0:
+                    self.metodo = "MetodoSimplex"
+                    self.tituloMetodo = "REPORTE MÉTODO SIMPLEX"
+                else:
+                    self.metodo = "MetodoBigM"
+                    self.tituloMetodo = "REPORTE MÉTODO BIG M"
 
         elif boton == self.botonIteracion:
             
@@ -277,18 +278,10 @@ class MethSimplex(QMainWindow):
         # no negatividad
         restriccionesString[len(restriccionesString)-1] = ""
 
-        combo = QtWidgets.QComboBox
-        signo = ""
         for fila in range(0, self.numRestricciones, 1):
-            combo = self.tablaRestricciones.cellWidget(fila, columnas-2)
-            signo = combo.currentText()
-            if signo == "=":
-                signo = " sin signo de restricción "
-            else:
-                signo += "0; "
             restriccionesString[len(restriccionesString) -
-                                1] += "X" + str(fila + 1) + signo
-
+                                1] += "X" + str(fila + 1) + ">=0"
+                                
         return restriccionesString
 
     def matrizInicial(self):
@@ -442,7 +435,7 @@ class MethSimplex(QMainWindow):
         claseMAcum.setCoeficiente(Fraccion.Fraccion(0, 1))
         fracAcumuladora = Fraccion.Fraccion(0, 1)
         frac = Fraccion.Fraccion(0, 0)
-        i = 0
+    
         for k in range(0, len(arregloZj), 1):
             if claseM.esM(arregloZj[k]):
                 claseM = claseM.obtenerM(arregloZj[k])
@@ -452,7 +445,7 @@ class MethSimplex(QMainWindow):
                 fracAcumuladora = fracAcumuladora.sumar(
                     frac.deTablaFraccion(arregloZj[k]))
                 llevaFrac = True
-
+       
         if llevaM == False:
             zjfinal = fracAcumuladora.__str__()
         elif (llevaFrac == True) and (fracAcumuladora.__str__()[0] == "-"):
@@ -700,24 +693,23 @@ class MethSimplex(QMainWindow):
 
         else:
             return  # retorna None
-
+    
     def devolverValorSR(self, stringDecimal):
+        fracString = ""
+        frac = Fraccion.Fraccion(0, 0)
         try:
-            frac = Fraccion.Fraccion(0, 0)
-            decimal = float(0)
-            if stringDecimal == "0" or stringDecimal == "-0" or stringDecimal == "0.0":
-                decimal = 1
-            elif frac.posicionBarra(stringDecimal) == -1:
-                decimal = float(stringDecimal)
-            else:
-                decimal = 1
-
-            if decimal % int(decimal) == 0:
-                return stringDecimal
-            else:
-                return frac.toFraccion(decimal).__str__()
+            decimal = float(stringDecimal)  #convierto a decimal
+            try:
+                if decimal % int(decimal) == 0:#es un numero entero
+                    fracString = stringDecimal 
+                else:
+                     fracString =  frac.toFraccion(decimal).__str__()
+            except ZeroDivisionError:# en caso de ingresar un 0.4
+                     fracString =  frac.toFraccion(decimal).__str__()
         except ValueError:
-            return "Dato vacio"
+             fracString = "Dato vacio"
+        
+        return fracString
 
     def variableSalida(self):
         fraccionAij = Fraccion.Fraccion(0, 0)
@@ -950,7 +942,7 @@ class MethSimplex(QMainWindow):
         # mostrar matriz en la tabla
         self.tablaU.clear()
         self.tablaU.setRowCount(numFilas)
-        self.tablaOperaciones.setColumnCount(numColumnas)
+        self.tablaU.setColumnCount(numColumnas)
 
         for j in range(numColumnas):
             item1 = QTableWidgetItem(" ")
@@ -1146,7 +1138,56 @@ class MethSimplex(QMainWindow):
                     resultados[i]=arregloXBFila[i]+" = "+self.tablaU.item((j+2),(columnas-1)).text()+", "
         return resultados
 
- 
+
+
+    def validarTablaFuncion(self):
+        datosOk= True
+        for i in range(self.numVariables):
+            try:
+                dato= int(self.tablaVariables.item(0,i).text())
+            except ValueError:
+                try:
+                    dato = float(self.tablaVariables.item(0,i).text())
+                except ValueError:
+                    datosOk=False
+                    self.show_popup_Informacion("Dato no válido en la tabla Función Objetivo",
+                    "Solo se permite el ingreso de enteros o decimales")
+                    break           
+            except AttributeError:
+                datosOk=False
+                self.show_popup_Informacion("Dato inválido",
+                "Dato vacío en la tabla Función Objetivo")
+                break
+
+
+    
+        return datosOk
+
+    def validarTablaRestricciones(self):
+        datosOk=True
+        for row in range (self.tablaRestricciones.rowCount()):
+            for col in range (self.tablaRestricciones.columnCount()):
+                if not col == self.tablaRestricciones.columnCount()-2: #no se toma en cuenta la columna con el signo de la restriccion
+                    try:
+                        dato= int(self.tablaRestricciones.item(row,col).text())
+                        
+                    except ValueError:
+                        try:
+                            dato = float(self.tablaRestricciones.item(row,col).text())
+                        except ValueError:
+                            datosOk=False
+                            self.show_popup_Informacion("Dato no válido en la tabla Restricciones","Solo se permite el ingreso de enteros o decimales")
+                            break
+                    except AttributeError:
+                        datosOk=False
+                        self.show_popup_Informacion("Dato inválido",
+                        "Dato vacío en la tabla Restricciones")
+                        break
+
+            if datosOk == False:
+                break
+        return datosOk
+
 
 
 
